@@ -17,7 +17,7 @@ const registerUser = asyncHandler(async (req, res) => {
 
     // get user details from frontend  //from postman
     const { username, email, fullName, password } = req.body;
-    console.log("email : ", email);
+    // console.log("email : ", email);
 
     // basic logic to check the field is empty or not
     // if(username === ""){
@@ -40,7 +40,8 @@ const registerUser = asyncHandler(async (req, res) => {
     // check for images check for avatar
     const avatarLocalPath = req.files?.avatar?.[0]?.path;
     const coverImageLocalPath = req.files?.coverImage?.[0]?.path;
- 
+   // console.log(req.files);
+
     if (!avatarLocalPath) {
         throw new ApiError(400, "Avatar file is Required");
     }
@@ -51,7 +52,6 @@ const registerUser = asyncHandler(async (req, res) => {
     const coverImage = coverImageLocalPath ? await uploadOnCloudinary(coverImageLocalPath) : null;
     // check for avatar again
     if (!avatar) {
-        // throw new ApiError(400, "Avatar file is Required");
         throw new ApiError(400, "Failed to upload avatar file");
     }
 
@@ -79,8 +79,5 @@ const registerUser = asyncHandler(async (req, res) => {
         new ApiResponse(200, createdUser, "User Register Successfully")
     )
 
-
-
 })
-
 export { registerUser }; 
