@@ -1,3 +1,1 @@
-#Chai our Backend Series
-
-This is Backend Series with JavaScript
+#Backend Series
