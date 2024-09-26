@@ -135,7 +135,7 @@ const loginUser = asyncHandler(async (req, res) => {
 
     // check for password
     const isPasswordValid = await user.isPasswordCorrect(password)
-    if (!password) {
+    if (!isPasswordValid) {
         throw new ApiError(401, "Password Incorrect");
     }
 
@@ -172,7 +172,7 @@ const loginUser = asyncHandler(async (req, res) => {
 // logoutUser 
 const logoutUser = asyncHandler(async (req, res) => {
     await User.findByIdAndUpdate(req.user._id,
-        { $set: { refreshToken: undefined } },
+        { $unset: { refreshToken: 1 } }, //this removes the field from backend
         { new: true }
     )
 
@@ -335,7 +335,7 @@ const updateUserAvatar = asyncHandler(async (req, res) => {
         },
         { new: true }
     ).select("-password")
-    return res()
+    return res
         .status(200)
         .json(new ApiResponse(200, user, "Avatar Updated Successful"));
 })
@@ -359,7 +359,7 @@ const updateUserCoverImage = asyncHandler(async (req, res) => {
         throw new ApiError(404, "Error While Uploading coverImage On Cloudinary")
     }
     // find user and update coverImage
-    const user = User.findByIdAndUpdate(req.user?._id,
+    const user = await User.findByIdAndUpdate(req.user?._id,
         {
             $set: {
                 coverImage: coverImage.url
@@ -367,7 +367,7 @@ const updateUserCoverImage = asyncHandler(async (req, res) => {
         },
         { new: true }
     ).select("-password")
-    return res()
+    return res
         .status(200)
         .json(
             new ApiResponse(200, user, "coverImage Updated Successful"));
