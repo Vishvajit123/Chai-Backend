@@ -463,6 +463,68 @@ const channel = await User.aggregate([
 })
 
 
+
+
+// Get watch history for the logged-in user
+const getWatchHistory = asyncHandler(async (req, res) => {
+    // Retrieve the user's ID from the request (assumed to be set by authentication middleware)
+    const user = await User.aggregate([
+        // Step 1: Match the user in the database using their ID
+        {
+            $match: {
+                _id: new mongoose.Types.ObjectId(req.user._id) // Convert req.user._id to ObjectId and match the user
+            }
+        },
+         // Step 2: Lookup the user's watch history by referencing the videos they watched
+        {
+            $lookup: {
+                from: "videos",                  // Lookup videos from the 'videos' collection
+                localField: "watchHistory",      // The field in the User document that holds watched video IDs
+                foreignField: "_id",             // The _id field in the 'videos' collection to match with User's watchHistory field
+                as: "watchHistory",              // Store the matched video documents in a field called 'watchHistory' 
+                
+                //Further process the videos data with a pipeline
+                pipeline: [
+                    {
+                        // Step 3: Lookup the owner (uploader) of each video
+                        $lookup: {
+                            from: "users",         // Join with the 'users' collection to get the video owner's details
+                            localField: "owner",   // The 'owner' field in the video document holds the owner's user ID
+                            foreignField: "_id",   // Match with the _id field in the 'users' collection
+                            as: "owner",           // Store the matched owner details in a field called 'owner'
+                            // Optional: Further process the videos data with a pipeline
+                            pipeline: [
+                                 // Step 4: Project only specific fields from the owner (fullName, username, avatar)
+                                {
+                                    $project: {
+                                        fullName: 1,
+                                        username: 1,
+                                        avatar: 1,     // Include only these fields from the owner document
+                                    }
+                                },
+                                 // Step 5: Add an 'owner' field that takes the first result from the 'owner' array
+                                {
+                                    $addFields: {
+                                        owner: {
+                                            $first: "$owner" // Get the first (and typically only) element from the 'owner' array
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    }
+                ]
+            }
+        }
+    ])
+    // Return the fetched watch history in the response
+    return res
+        .status(200)
+        .json(
+            new ApiResponse(200, user[0].watchHistory, "Watch History Fetched Successfully") // Return the watchHistory data from the user
+        )
+}) 
+
 export {
     registerUser,
     loginUser,
@@ -474,4 +536,5 @@ export {
     updateUserAvatar,
     updateUserCoverImage,
     getUserChannelProfile,
+    getWatchHistory
 }; 
