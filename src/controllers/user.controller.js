@@ -4,6 +4,7 @@ import { User } from "../models/user.model.js";
 import { uploadOnCloudinary } from "../utils/cloudinary.js";
 import { ApiResponse } from "../utils/ApiResponse.js";
 import jwt from "jsonwebtoken";
+import mongoose from "mongoose";
 
 // method to generate access and refresh tokens
 const generateAccessAndRefreshTokens = async (userId) => {
@@ -27,6 +28,8 @@ const generateAccessAndRefreshTokens = async (userId) => {
         throw new ApiError(500, "Something Went Wrong While Generating Access and Refresh Tokens")
     }
 };
+
+
 
 // register User
 const registerUser = asyncHandler(async (req, res) => {
@@ -106,6 +109,9 @@ const registerUser = asyncHandler(async (req, res) => {
 
 })
 
+
+
+
 // Login User
 const loginUser = asyncHandler(async (req, res) => {
     // get details from post man , username , password, email
@@ -160,6 +166,9 @@ const loginUser = asyncHandler(async (req, res) => {
         )
 })
 
+
+
+
 // logoutUser 
 const logoutUser = asyncHandler(async (req, res) => {
     await User.findByIdAndUpdate(req.user._id,
@@ -178,6 +187,10 @@ const logoutUser = asyncHandler(async (req, res) => {
         .clearCookie("refreshToken", options)
         .json(new ApiResponse(200, {}, "User Logged Out"))
 })
+
+
+
+
 
 // refresh acces token endpoint
 const refreshAccessToken = asyncHandler(async (req, res) => {
@@ -227,6 +240,10 @@ const refreshAccessToken = asyncHandler(async (req, res) => {
     }
 })
 
+
+
+
+// Add user control management endPoints
 // change current password
 const changeCurrentPassword = asyncHandler(async (req, res) => {
     const { oldPassword, newPassword } = req.body;
@@ -250,12 +267,21 @@ const changeCurrentPassword = asyncHandler(async (req, res) => {
         .json(new ApiResponse(200, {}, "Password Changed Successfully"))
 })
 
+
+
+
+
 // get current user
 const getCurrentUser = asyncHandler(async (req, res) => {
     return res
         .status(200)
-        .json(new ApiResponse (200, req.user, "Current user fetched successfully"))
+        .json(new ApiResponse(200, req.user, "Current user fetched successfully"))
 })
+
+
+
+
+
 
 //update account details
 const updateAccountDetails = asyncHandler(async (req, res) => {
@@ -270,7 +296,7 @@ const updateAccountDetails = asyncHandler(async (req, res) => {
         req.user?._id,
         {
             $set: {
-                fullname: fullName,
+                fullName: fullName,
                 email: email,
             }
         },
@@ -280,6 +306,11 @@ const updateAccountDetails = asyncHandler(async (req, res) => {
         .status(200)
         .json(new ApiResponse(200, user, "Account Details Updated Successfully"))
 })
+
+
+
+
+
 
 // update user Avtar //image
 const updateUserAvatar = asyncHandler(async (req, res) => {
@@ -308,6 +339,10 @@ const updateUserAvatar = asyncHandler(async (req, res) => {
         .status(200)
         .json(new ApiResponse(200, user, "Avatar Updated Successful"));
 })
+
+
+
+
 
 // update user cover Image
 const updateUserCoverImage = asyncHandler(async (req, res) => {
@@ -338,6 +373,96 @@ const updateUserCoverImage = asyncHandler(async (req, res) => {
             new ApiResponse(200, user, "coverImage Updated Successful"));
 })
 
+
+
+// get user channel profile
+const getUserChannelProfile = asyncHandler(async (req, res) => {
+     // Extract the username from the request parameters (req.params)
+    const { username } = req.params;
+    // Check if the username is missing 
+    if (!username) {
+        throw new ApiError(400, 'Username is missing');
+    }
+    
+    // if present then find the document
+    // Perform an aggregation on the User collection to retrieve the user's profile and related data
+    // The User.aggregate() method is used to perform an aggregation pipeline operation on the User collection in MongoDB.
+const channel = await User.aggregate([
+        {
+            // Match the user by comparing the lowercase username from the request with the one stored in the database
+            $match: {
+                username: username?.toLowerCase()     //match username comming from db and the username comming from req.params
+            }
+        },
+        // Find subscribers to the user's channel
+        {
+            $lookup: {
+                from: "subscriptions",         //other collection // Subscription in db names is subscriptions
+                localField: "_id",             //The _id field from the User collection
+                foreignField: "channel",       // field in other collection  // The channel field from the subscriptions collection (which is linked to the user)
+                as: "subscribers"              // The resulting array will be stored in this field (subscribers)
+            }
+        },
+        // find a user subscribe whom ,count // Lookup channels that the user is subscribed to
+        {
+            $lookup: {
+                from: "subscriptions",         //other collection // Subscription in db names is subscriptions
+                localField: "_id",             //field in this collection // The _id field from the User collection
+                foreignField: "subscriber",    // field in other collection  // The subscriber field from the subscriptions collection (which indicates users they are subscribed to)
+                as: "subscribedTo"             // The resulting array will be stored in this field (subscribedTo)
+            }
+        },
+        // Add additional calculated fields to the result
+        {
+            $addFields: {
+                // Count the number of subscribers for the channel
+                subscribersCount: {
+                    $size: "$subscribers"    // Use the $size operator to get the size of the subscribers array
+                },
+                // Count how many channels this user is subscribed to
+                channelsSubscribedToCount: {
+                    $size: "$subscribedTo"   // Use the $size operator to get the size of the subscribedTo array
+                },
+                // Check if the current user is subscribed to this channel
+                isSubscribed: {
+                    $cond: {
+                        // muze ye dekhna he ki aapke pass jo doc aaya hee(subscribers) usme mee hu ya nahi
+                        // Use the $in operator to check if the current user's ID exists in the subscribers array
+                        if: { $in: [req.user?._id, "$subscribers.subscriber"] },
+                        then: true,                // If the user is subscribed, set this field to true
+                        else: false                // Otherwise, set it to false
+                    }
+                }
+            }
+        },
+        {
+            // Project (select) the specific fields to include in the final result
+            $project: {
+                fullName: 1,                        // Include the fullName field
+                username: 1,                        // Include the username field
+                subscribersCount: 1,                // Include the calculated subscribersCount field 
+                channelsSubscribedToCount: 1,       // Include the calculated channelsSubscribedToCount field
+                isSubscribed: 1,                    // Include the isSubscribed field 
+                coverImage: 1,                      // Include the coverImage field              
+                email: 1,                           // Include the email field  
+            }
+        }
+
+    ])
+    // console.log(channel);
+    // If no channel was found (the aggregation result is empty), throw a 404 (Not Found) error
+    if(!channel?.length){
+        throw new ApiError(404, "Channel Does Not Exists")
+    }
+   // If the channel is found, return the result with a 200 (OK) status
+    return res
+    .status(200)
+    .json(
+        new ApiResponse(200, channel[0], "User Channel Fetched Successfully") // Send the first result from the aggregation
+    )
+})
+
+
 export {
     registerUser,
     loginUser,
@@ -348,5 +473,5 @@ export {
     updateAccountDetails,
     updateUserAvatar,
     updateUserCoverImage,
-
+    getUserChannelProfile,
 }; 
