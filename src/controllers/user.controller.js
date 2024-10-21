@@ -1,7 +1,7 @@
 import { asyncHandler } from "../utils/asyncHandler.js";
 import { ApiError } from "../utils/ApiError.js";
 import { User } from "../models/user.model.js";
-import { uploadOnCloudinary } from "../utils/cloudinary.js";
+import { uploadOnCloudinary, deleteFromCloudinary } from "../utils/cloudinary.js";
 import { ApiResponse } from "../utils/ApiResponse.js";
 import jwt from "jsonwebtoken";
 import mongoose from "mongoose";
@@ -326,6 +326,24 @@ const updateUserAvatar = asyncHandler(async (req, res) => {
     if (!avatar.url) {
         throw new ApiError(400, "Error While Uploading Avatar On Cloudinary");
     }
+
+    // Delete user Avatar/Image From Cloudinary
+    // This code extract publicId of users avatar img from URL, It user a regular expression to find part of url that represent publicId, if publicId is Found , the Code proceeds to delete the avatar from user cloudinary, if not found the publicId throw error 
+
+    // check user is exist and access the User's avatar image
+    const avatarUrl = req.user?.avatar;
+    // This regular expression is designed to extract the public ID of the avatar from the URL.
+    const regex = /\/([^/]+)\.[^.]+$/;
+    // Matching the URL with the Regular Expression
+    const match = avatarUrl.match(regex);
+    // If the match is null
+    if(!match){
+        throw new ApiError(400, "Couldn't find Public Id of Old Avatar");
+    }
+    // If the match is successful, match[1] contains the public ID extracted by the regular expression
+    const publicId = match[1];
+    await deleteFromCloudinary(publicId);
+
     // find user and update
     const user = await User.findByIdAndUpdate(req.user?._id,
         {
@@ -334,7 +352,7 @@ const updateUserAvatar = asyncHandler(async (req, res) => {
             }
         },
         { new: true }
-    ).select("-password")
+    ).select("-password -refreshToken");
     return res
         .status(200)
         .json(new ApiResponse(200, user, "Avatar Updated Successful"));
@@ -358,6 +376,17 @@ const updateUserCoverImage = asyncHandler(async (req, res) => {
     if (!coverImage.url) {
         throw new ApiError(404, "Error While Uploading coverImage On Cloudinary")
     }
+
+    // find coverImage url form cloudinary and delete 
+    const coverImageUrl = req.user?.coverImage;
+    const regex = /\/([^/]+)\.[^.]+$/;
+    const match = coverImageUrl.match(regex);
+    if(!match){
+        throw new ApiError(400, "Error While find publicId of coverImage on Cloudinary")
+    }
+    const publicId = match[1];
+    await deleteFromCloudinary(publicId);
+
     // find user and update coverImage
     const user = await User.findByIdAndUpdate(req.user?._id,
         {
