@@ -79,28 +79,28 @@ const getAllVideos = asyncHandler(async (req, res) => {
                 duration: 1,
                 views: 1,
                 isPublished: 1,
-                createdAt: 1, 
+                createdAt: 1,
             },
-        },{
+        }, {
             $sort: {
-                [sortBy] : sortType === "asc"? 1: -1
+                [sortBy]: sortType === "asc" ? 1 : -1
             }
-        },{
+        }, {
             // $skip skips a number of videos so that only the ones relevant to the current page are returned.
             // The calculation (page - 1) * limit ensures that the correct number of documents are skipped for each page.
             // On page 1, it skips 0 documents.
             // On page 2, it skips the first 10 documents (assuming limit is 10).
             // On page 3, it skips the first 20 documents, and so on.
-            $skip: (page -1) * limit,
-        },{
+            $skip: (page - 1) * limit,
+        }, {
             // $limit: This is a MongoDB aggregation stage that restricts the number of documents returned. It tells MongoDB to stop processing the pipeline after reaching the specified number of results.
             //parseInt(limit): This converts the limit value (which is a string, since query parameters are passed as strings in HTTP requests) into an integer. parseInt() is necessary because MongoDB requires a numeric value for the limit.
             $limit: parseInt(limit)
         }
     ]);
 
-    if(videos.length == 0){
-        return res.status(404).json(new ApiResponse(404, [], "No videos found"));        
+    if (videos.length == 0) {
+        return res.status(404).json(new ApiResponse(404, [], "No videos found"));
     }
     return res
         .status(200)
@@ -111,7 +111,98 @@ const getAllVideos = asyncHandler(async (req, res) => {
 });
 
 
-// get a perticulat users videos
+// Controller function to get a particular user's videos
+const getUserVideos = asyncHandler(async (req, res) => {
+    // extract the page, limit, sortType from req.query
+    // extract userId from req.params
+    // Validate the User ID: Ensure that the provided user ID is valid.
+    // Fetch Videos: Query the database for videos associated with the user ID
+    // Return a proper response if no videos are found.
+    // Return the list of videos in the response.
+
+    const {
+        page = 1,   // Default to the first page if not provided
+        limit = 10, // Default to 10 items per page if not provided
+        sortType = "desc"  // Default sorting order is descending if not specified
+    } = req.query;
+
+    // Extract the userId from the request parameters
+    const { userId } = req.params;
+
+    // Validate the User ID: Check if the provided user ID is a valid MongoDB ObjectId
+    if (!mongoose.isValidObjectId(userId)) {
+        throw new ApiError(400, "Invalid UserId");
+    }
+
+    // Fetch Videos: Query the database for videos associated with the user ID.
+    const videos = await Video.aggregate([
+        {
+             // Match userId to find videos owned by the specified user
+            $match: {
+                owner: new mongoose.Types.ObjectId(userId) // Convert userId to ObjectId for matching
+            }
+        },
+        {     
+            // Filter only published videos
+            $match: { isPublished: true }
+        },
+        { 
+            // Sort videos based on their creation date
+            $sort: {
+                createdAt: sortType === "asc" ? 1 : -1,
+            }
+        },
+        {
+            // Skip a number of records for pagination
+            $skip: (page - 1) * limit
+        },
+        { 
+            // Limit the number of results returned based on the limit provided
+            $limit: parseInt(limit)
+        },
+        {
+            // Lookup user information from the 'users' collection to get owner details
+            $lookup: {
+                from: "users", // Join with the users collection
+                localField: "owner",   // Match with the owner's ID in the videos collection
+                foreignField: "_id",  // Match against the user IDs in the users collection
+                as: "owner", 
+                pipeline: [
+                    {  // Project only specific fields to return for the owner
+                        $project: {
+                            avatar: 1,
+                            username: 1,
+                            fullName: 1,
+                        }
+                    }
+                ]
+            }
+        },
+        { // Specify the fields to return in the final output
+            $project: {
+                _id: 1,
+                owner: 1,
+                videoFile: 1,
+                thubnail: 1,
+                createdAt: 1,
+                description: 1,
+                title: 1,
+                duration:1,
+                views: 1,
+                isPublished: 1,
+            }
+        },
+    ]);
+
+    // If not Found
+    if(!videos || videos.length === 0){
+        throw new ApiError(404, "Error while Fetching Videos");
+    }
+    // Return the list of videos
+    return res
+        .status(200)
+        .json(new ApiResponse(200, videos, "Videos Fetched Succcessfully"));
+})
 
 
-export { getAllVideos };
+export { getAllVideos, getUserVideos };

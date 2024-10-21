@@ -1,4 +1,5 @@
 import {v2 as cloudinary} from "cloudinary";
+import { response } from "express";
 import fs from "fs";
 
 // Configuration
@@ -27,4 +28,16 @@ const uploadOnCloudinary = async (localFilePath) => {
     }
 }
 
-export {uploadOnCloudinary}
+const deleteFromCloudinary = async (publicId, resourceType = "image") => {
+    try {
+        // Delete the Asset with Given Public Id
+        await cloudinary.uploader.destroy(publicId, {resource_type: resourceType});
+        return response;
+    } catch (error) {
+        console.log("Error while Deleting Assets from Cloudinary", error.message);
+        return null;
+    }
+}
+
+
+export {uploadOnCloudinary, deleteFromCloudinary}
