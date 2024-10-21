@@ -14,15 +14,15 @@ app.use(express.static("public"));
 app.use(cookieParser())
 
 //routes import
-
 import userRouter from './routes/user.routes.js';
+import videoRouter from './routes/video.routes.js';
 
 // routes decleration
 app.use("/api/v1/users", userRouter);
 // http://localhost:8000/api/v1/users/register
 
-
-
+app.use("/api/v1/videos", videoRouter);
+// http://localhost:8000/api/v1/videos
 
 
 export default app;
